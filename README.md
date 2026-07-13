@@ -39,15 +39,15 @@ python -m http.server 8000
 
 ## GitHub Pages 배포
 
-1. 이 PR을 `main`에 병합합니다.
-2. 저장소의 **Settings → Pages**로 이동합니다.
-3. **Build and deployment → Source**를 `Deploy from a branch`로 선택합니다.
-4. 브랜치는 `main`, 폴더는 `/(root)`를 선택하고 저장합니다.
-5. 배포 후 사이트 주소는 일반적으로 다음과 같습니다.
+`main` 브랜치에 변경이 반영되면 `.github/workflows/deploy-pages.yml`이 사이트를 자동 배포합니다.
+
+사이트 주소:
 
 ```text
 https://notetester.github.io/AIDICTIONARY/
 ```
+
+수동 재배포가 필요하면 저장소의 **Actions → Deploy static content to Pages → Run workflow**를 실행합니다.
 
 ## 용어 추가
 
