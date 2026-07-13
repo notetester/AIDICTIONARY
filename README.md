@@ -1,2 +1,74 @@
 # AIDICTIONARY
-AIDICTIONARY
+
+AI부터 소프트웨어 개발, 데이터베이스, 네트워크, 클라우드·인프라, Git 협업, 보안·품질까지 한국어로 쉽게 설명하는 공개 IT 용어 사전입니다.
+
+## 주요 기능
+
+- 한글명·영문명·별칭·설명 통합 검색
+- 분야와 난이도 필터
+- 가나다순·영문순·난이도순 정렬
+- 관련 용어 이동과 공유 가능한 상세 링크
+- 다크 모드와 모바일 반응형 UI
+- 빌드 도구나 외부 라이브러리 없이 GitHub Pages에서 실행
+- 용어 데이터를 `data/terms.js`에 분리하여 간단히 확장
+
+## 로컬 실행
+
+정적 파일 서버를 사용하면 됩니다.
+
+```bash
+python -m http.server 8000
+```
+
+그다음 `http://localhost:8000`을 엽니다.
+
+## GitHub Pages 배포
+
+1. 이 PR을 `main`에 병합합니다.
+2. 저장소의 **Settings → Pages**로 이동합니다.
+3. **Build and deployment → Source**를 `Deploy from a branch`로 선택합니다.
+4. 브랜치는 `main`, 폴더는 `/(root)`를 선택하고 저장합니다.
+5. 배포 후 사이트 주소는 일반적으로 다음과 같습니다.
+
+```text
+https://notetester.github.io/AIDICTIONARY/
+```
+
+## 용어 추가
+
+`data/terms.js`의 배열에 다음 형태로 항목을 추가합니다.
+
+```js
+{
+  id: "unique-slug",
+  term: "한글 용어",
+  english: "English Term",
+  aliases: ["별칭"],
+  category: "AI·머신러닝",
+  level: "입문",
+  short: "한 문장 정의",
+  description: "자세한 설명",
+  example: "실제 예시",
+  related: ["related-term-id"],
+  keywords: ["검색 키워드"]
+}
+```
+
+현재 분류:
+
+- LLM·생성형 AI
+- AI·머신러닝
+- 개발·웹
+- 데이터·DB
+- 클라우드·인프라
+- 네트워크
+- Git·협업
+- 보안·품질
+
+## 기여
+
+오탈자, 부정확한 설명, 새 용어 제안은 Issue 또는 Pull Request로 제출할 수 있습니다. 자세한 기준은 [CONTRIBUTING.md](./CONTRIBUTING.md)를 참고하세요.
+
+## 라이선스
+
+이 저장소의 기존 라이선스인 GNU GPL v3를 따릅니다.
