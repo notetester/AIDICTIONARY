@@ -1,0 +1,54 @@
+name: Validate dictionary
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check JavaScript syntax
+        run: node --check app.js && for file in data/terms-*.js; do node --check "$file"; done
+
+      - name: Validate terminology data
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const vm = require('vm');
+
+          const sandbox = { window: {} };
+          const files = fs.readdirSync('data')
+            .filter((name) => /^terms-.*\.js$/.test(name))
+            .sort();
+
+          for (const file of files) {
+            vm.runInNewContext(fs.readFileSync(path.join('data', file), 'utf8'), sandbox, { filename: file });
+          }
+
+          const terms = sandbox.window.AIDICTIONARY_TERMS;
+          if (!Array.isArray(terms)) throw new Error('Terminology data was not initialized.');
+          if (terms.length !== 107) throw new Error(`Expected 107 terms, received ${terms.length}.`);
+
+          const required = ['id', 'term', 'english', 'category', 'level', 'short', 'description', 'example'];
+          const ids = new Set();
+          for (const term of terms) {
+            for (const field of required) {
+              if (!term[field]) throw new Error(`Missing ${field} in ${term.id || JSON.stringify(term)}`);
+            }
+            if (ids.has(term.id)) throw new Error(`Duplicate id: ${term.id}`);
+            ids.add(term.id);
+          }
+
+          const categories = new Set(terms.map((term) => term.category));
+          if (categories.size !== 8) throw new Error(`Expected 8 categories, received ${categories.size}.`);
+          console.log(`Validated ${terms.length} terms across ${categories.size} categories.`);
+          NODE
