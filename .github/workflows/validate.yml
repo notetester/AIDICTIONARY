@@ -33,6 +33,7 @@ jobs:
             'terms-llm.js',
             'terms-it.js',
             'terms-expert-ai.js',
+            'learning-paths.js',
             'term-details.js'
           ];
 
@@ -44,6 +45,7 @@ jobs:
 
           const terms = sandbox.window.AIDICTIONARY_TERMS;
           const details = sandbox.window.AIDICTIONARY_DETAILS || {};
+          const learningPaths = sandbox.window.AIDICTIONARY_PATHS || [];
           if (!Array.isArray(terms)) throw new Error('Terminology data was not initialized.');
           if (terms.length < 145) throw new Error(`Expected at least 145 terms, received ${terms.length}.`);
 
@@ -75,11 +77,27 @@ jobs:
             }
           }
 
+          if (!Array.isArray(learningPaths) || learningPaths.length < 6) {
+            throw new Error(`Expected at least 6 learning paths, received ${learningPaths.length || 0}.`);
+          }
+          const pathIds = new Set();
+          for (const learningPath of learningPaths) {
+            if (!learningPath.id || !learningPath.title || !Array.isArray(learningPath.terms) || !learningPath.terms.length) {
+              throw new Error(`Invalid learning path: ${JSON.stringify(learningPath)}`);
+            }
+            if (pathIds.has(learningPath.id)) throw new Error(`Duplicate learning path id: ${learningPath.id}`);
+            pathIds.add(learningPath.id);
+            for (const termId of learningPath.terms) {
+              if (!ids.has(termId)) unresolvedRelations.push(`path:${learningPath.id} -> ${termId}`);
+            }
+          }
+
           const categories = new Set(terms.map((term) => term.category));
           if (categories.size < 8) throw new Error(`Expected at least 8 categories, received ${categories.size}.`);
 
           console.log(`Validated ${terms.length} terms across ${categories.size} categories.`);
           console.log(`Validated ${Object.keys(details).length} expert explanations.`);
+          console.log(`Validated ${learningPaths.length} curated learning paths.`);
           if (unresolvedRelations.length) {
             console.warn(`Unresolved optional relations (${unresolvedRelations.length}):`);
             console.warn(unresolvedRelations.slice(0, 30).join('\n'));
