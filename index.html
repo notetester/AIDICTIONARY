@@ -3,10 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="AI부터 개발, 데이터베이스, 네트워크, 인프라, 보안까지 쉽게 설명하는 한국어 IT 용어 사전">
+  <meta name="description" content="비전공자도 이해할 수 있는 쉬운 설명에서 시작해 정확한 정의, 작동 원리, 실무 체크리스트와 관련 개념 트리까지 제공하는 AI·IT 용어 사전">
   <meta name="theme-color" content="#0b1020">
-  <title>AIDICTIONARY — AI·IT 용어 사전</title>
+  <title>AIDICTIONARY — 전문가로 이어지는 AI·IT 용어 사전</title>
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./expert.css">
 </head>
 <body>
   <a class="skip-link" href="#dictionary">본문으로 건너뛰기</a>
@@ -32,30 +33,48 @@
   <main>
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-inner">
-        <p class="eyebrow">KOREAN TECH GLOSSARY</p>
-        <h1 id="hero-title">낯선 AI·IT 용어를<br><span>원리와 예시까지</span> 이해하세요.</h1>
-        <p class="hero-copy">단순 번역이 아니라, 무엇이고 왜 필요한지와 실제 개발 맥락을 함께 설명합니다.</p>
+        <p class="eyebrow">FROM FIRST PRINCIPLES TO PRACTICE</p>
+        <h1 id="hero-title">쉽게 시작해서<br><span>정확하게 전문가까지</span></h1>
+        <p class="hero-copy">비유로 감을 잡고, 기술 정의와 작동 원리로 정확히 이해한 뒤, 실무 체크리스트와 연결된 개념 트리를 따라 깊이를 확장합니다.</p>
         <div class="hero-stats" aria-label="사전 통계">
           <div><strong id="termCount">0</strong><span>등록 용어</span></div>
-          <div><strong id="categoryCount">0</strong><span>분류</span></div>
-          <div><strong>100%</strong><span>무료·공개</span></div>
+          <div><strong id="categoryCount">0</strong><span>전문 분야</span></div>
+          <div><strong id="deepCount">0</strong><span>전문가 심화 해설</span></div>
         </div>
+      </div>
+    </section>
+
+    <section class="learning-method" aria-labelledby="learning-method-title">
+      <div class="method-heading">
+        <div>
+          <p class="eyebrow">HOW TO LEARN</p>
+          <h2 id="learning-method-title">한 용어를 네 단계로 익힙니다.</h2>
+        </div>
+      </div>
+      <div class="method-grid">
+        <article><span>01</span><h3>직관</h3><p>비전공자도 이해할 수 있는 쉬운 말과 비유로 전체 모습을 먼저 잡습니다.</p></article>
+        <article><span>02</span><h3>정확성</h3><p>수식·구조·조건을 포함한 기술 정의로 모호함과 잘못된 단순화를 제거합니다.</p></article>
+        <article><span>03</span><h3>실무</h3><p>작동 원리, 트레이드오프, 흔한 오해와 검증 체크리스트를 확인합니다.</p></article>
+        <article><span>04</span><h3>확장</h3><p>선행 개념과 다음 개념을 따라가며 지식 트리를 계속 넓혀 갑니다.</p></article>
       </div>
     </section>
 
     <section class="dictionary-shell" id="dictionary" aria-labelledby="dictionary-title">
       <div class="toolbar">
         <div class="section-heading">
-          <p class="eyebrow">DICTIONARY</p>
-          <h2 id="dictionary-title">용어 찾아보기</h2>
+          <div>
+            <p class="eyebrow">DICTIONARY</p>
+            <h2 id="dictionary-title">용어 찾아보기</h2>
+          </div>
+          <p>카드를 열면 쉬운 설명부터 전문가용 정의와 관계 트리까지 이어집니다.</p>
         </div>
         <div class="search-wrap">
           <label class="sr-only" for="searchInput">용어 검색</label>
           <span class="search-icon" aria-hidden="true">⌕</span>
-          <input id="searchInput" type="search" autocomplete="off" placeholder="예: LoRA, 트랜잭션, CORS, 그라운딩" aria-describedby="searchHint">
+          <input id="searchInput" type="search" autocomplete="off" placeholder="예: LoRA Rank, alpha/r, attention-only, JSON Schema" aria-describedby="searchHint">
           <kbd title="검색창으로 이동">/</kbd>
         </div>
-        <p id="searchHint" class="sr-only">한글명, 영문명, 별칭과 설명을 검색합니다.</p>
+        <p id="searchHint" class="sr-only">한글명, 영문명, 별칭, 정의와 심화 설명 전체를 검색합니다.</p>
         <div class="filters" aria-label="용어 필터">
           <div id="categoryFilters" class="chip-list" role="group" aria-label="분류"></div>
           <div class="secondary-filters">
@@ -83,13 +102,15 @@
   </dialog>
 
   <footer>
-    <div><strong>AIDICTIONARY</strong><p>AI와 IT를 이해 가능한 언어로 연결합니다.</p></div>
+    <div><strong>AIDICTIONARY</strong><p>쉬운 설명과 기술적 정확성을 동시에 추구합니다.</p></div>
     <p>오탈자·설명 개선·새 용어 제안은 <a href="https://github.com/notetester/AIDICTIONARY/issues" target="_blank" rel="noreferrer">GitHub Issues</a>에서 받습니다.</p>
   </footer>
 
   <script src="./data/terms-ml.js"></script>
   <script src="./data/terms-llm.js"></script>
   <script src="./data/terms-it.js"></script>
+  <script src="./data/terms-expert-ai.js"></script>
+  <script src="./data/term-details.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
