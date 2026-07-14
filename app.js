@@ -5,6 +5,18 @@
   const details = window.AIDICTIONARY_DETAILS && typeof window.AIDICTIONARY_DETAILS === "object"
     ? window.AIDICTIONARY_DETAILS
     : {};
+  const learningPaths = Array.isArray(window.AIDICTIONARY_PATHS) ? window.AIDICTIONARY_PATHS : [];
+
+  function loadLearnedTerms() {
+    try {
+      const stored = JSON.parse(localStorage.getItem("aictionary-learned-terms") || "[]");
+      return new Set(Array.isArray(stored) ? stored : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  const learnedTerms = loadLearnedTerms();
   const state = { query: "", category: "전체", level: "전체", sort: "korean" };
   const categoryOrder = ["LLM·생성형 AI", "AI·머신러닝", "개발·웹", "데이터·DB", "클라우드·인프라", "네트워크", "Git·협업", "보안·품질"];
   const levelOrder = { "입문": 0, "중급": 1, "고급": 2 };
@@ -37,6 +49,8 @@
     termCount: document.querySelector("#termCount"),
     categoryCount: document.querySelector("#categoryCount"),
     deepCount: document.querySelector("#deepCount"),
+    learningPathGrid: document.querySelector("#learningPathGrid"),
+    learningProgressSummary: document.querySelector("#learningProgressSummary"),
     themeToggle: document.querySelector("#themeToggle"),
     termDialog: document.querySelector("#termDialog"),
     dialogCategory: document.querySelector("#dialogCategory"),
@@ -113,12 +127,14 @@
   function cardTemplate(term) {
     const aliases = (term.aliases || []).slice(0, 2).join(" · ");
     const hasDeep = Boolean(details[term.id]);
-    return `<article class="term-card${hasDeep ? " has-deep-detail" : ""}" tabindex="0" role="button" data-term-id="${escapeHtml(term.id)}" aria-label="${escapeHtml(term.term)} 상세 보기">
+    const isLearned = learnedTerms.has(term.id);
+    return `<article class="term-card${hasDeep ? " has-deep-detail" : ""}${isLearned ? " is-learned" : ""}" tabindex="0" role="button" data-term-id="${escapeHtml(term.id)}" aria-label="${escapeHtml(term.term)} 상세 보기">
       <div class="card-top">
         <span class="category-badge">${escapeHtml(term.category)}</span>
         <span class="level-badge">${escapeHtml(term.level)}</span>
       </div>
       ${hasDeep ? `<span class="deep-badge">전문가 해설</span>` : ""}
+      ${isLearned ? `<span class="learned-badge">학습 완료</span>` : ""}
       <h3>${escapeHtml(term.term)}</h3>
       <p class="english-name">${escapeHtml(term.english)}</p>
       <p class="short-definition">${escapeHtml(term.short)}</p>
@@ -135,6 +151,64 @@
     elements.clearFilters.hidden = !(state.query || state.category !== "전체" || state.level !== "전체" || state.sort !== "korean");
     elements.categoryFilters.querySelectorAll("[data-category]")
       .forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.category === state.category)));
+  }
+
+  function saveLearnedTerms() {
+    localStorage.setItem("aictionary-learned-terms", JSON.stringify([...learnedTerms]));
+  }
+
+  function validPathTerms(path) {
+    return uniqueIds(path.terms || []);
+  }
+
+  function renderLearningPaths() {
+    if (!elements.learningPathGrid) return;
+    const pathMarkup = learningPaths.map((path) => {
+      const ids = validPathTerms(path);
+      const completed = ids.filter((id) => learnedTerms.has(id)).length;
+      const percent = ids.length ? Math.round((completed / ids.length) * 100) : 0;
+      const nextId = ids.find((id) => !learnedTerms.has(id)) || ids[0];
+      const preview = ids.slice(0, 5).map((id) => {
+        const term = termMap.get(id);
+        return `<button type="button" data-path-term-id="${escapeHtml(id)}" class="${learnedTerms.has(id) ? "is-complete" : ""}">${escapeHtml(term.term)}</button>`;
+      }).join("");
+      return `<article class="learning-path-card" data-path-id="${escapeHtml(path.id)}">
+        <div class="path-card-top">
+          <span>${escapeHtml(path.level || "")}</span>
+          <strong>${completed}/${ids.length}</strong>
+        </div>
+        <h3>${escapeHtml(path.title)}</h3>
+        <p class="path-subtitle">${escapeHtml(path.subtitle || "")}</p>
+        <p>${escapeHtml(path.description || "")}</p>
+        <div class="path-progress" aria-label="${escapeHtml(path.title)} 진행률 ${percent}%"><span style="width:${percent}%"></span></div>
+        <div class="path-preview">${preview}</div>
+        <details class="path-all-terms">
+          <summary>전체 ${ids.length}개 학습 순서</summary>
+          <ol>${ids.map((id) => {
+            const term = termMap.get(id);
+            return `<li><button type="button" data-path-term-id="${escapeHtml(id)}" class="${learnedTerms.has(id) ? "is-complete" : ""}">${escapeHtml(term.term)} <small>${escapeHtml(term.english)}</small></button></li>`;
+          }).join("")}</ol>
+        </details>
+        ${nextId ? `<button class="path-start-button" type="button" data-path-start-id="${escapeHtml(nextId)}">${completed === ids.length ? "다시 보기" : completed ? "이어서 학습" : "학습 시작"}</button>` : ""}
+      </article>`;
+    }).join("");
+
+    elements.learningPathGrid.innerHTML = pathMarkup;
+    if (elements.learningProgressSummary) {
+      const pathTermIds = uniqueIds(learningPaths.flatMap((path) => path.terms || []));
+      const learnedInPaths = pathTermIds.filter((id) => learnedTerms.has(id)).length;
+      elements.learningProgressSummary.textContent = `${learnedInPaths}/${pathTermIds.length}개 핵심 용어 학습 완료`;
+    }
+  }
+
+  function toggleLearned(id) {
+    if (!termMap.has(id)) return;
+    if (learnedTerms.has(id)) learnedTerms.delete(id);
+    else learnedTerms.add(id);
+    saveLearnedTerms();
+    render();
+    renderLearningPaths();
+    openTerm(id, false);
   }
 
   function relationButtons(ids, relationType = "related") {
@@ -278,6 +352,14 @@
         <p class="example-box">${escapeHtml(term.example)}</p>
       </section>
 
+      <section class="mastery-section">
+        <div>
+          <strong>${learnedTerms.has(term.id) ? "이 용어를 학습 완료했습니다." : "설명을 읽고 이해했다면 학습 기록에 남겨 보세요."}</strong>
+          <p>기록은 이 브라우저에만 저장되며 언제든 해제할 수 있습니다.</p>
+        </div>
+        <button id="masteryButton" type="button">${learnedTerms.has(term.id) ? "학습 완료 해제" : "학습 완료로 표시"}</button>
+      </section>
+
       <section class="detail-section learning-route">
         <h3>전문가로 이어지는 학습 경로</h3>
         <div class="route-grid">
@@ -308,6 +390,8 @@
 
     elements.dialogContent.querySelectorAll("[data-related-id]")
       .forEach((button) => button.addEventListener("click", () => openTerm(button.dataset.relatedId)));
+
+    elements.dialogContent.querySelector("#masteryButton")?.addEventListener("click", () => toggleLearned(term.id));
 
     elements.dialogContent.querySelector("#copyLinkButton")?.addEventListener("click", async (event) => {
       try {
@@ -377,6 +461,15 @@
     if (pool.length) openTerm(pool[Math.floor(Math.random() * pool.length)].id);
   });
   elements.clearFilters.addEventListener("click", resetFilters);
+  elements.learningPathGrid?.addEventListener("click", (event) => {
+    const termButton = event.target.closest("[data-path-term-id]");
+    if (termButton) {
+      openTerm(termButton.dataset.pathTermId);
+      return;
+    }
+    const startButton = event.target.closest("[data-path-start-id]");
+    if (startButton) openTerm(startButton.dataset.pathStartId);
+  });
   elements.themeToggle.addEventListener("click", toggleTheme);
   elements.termGrid.addEventListener("click", (event) => {
     const card = event.target.closest("[data-term-id]");
@@ -413,5 +506,6 @@
     elements.deepCount.textContent = Object.keys(details).filter((id) => termMap.has(id)).length.toLocaleString("ko-KR");
   }
   render();
+  renderLearningPaths();
   handleHash();
 })();
