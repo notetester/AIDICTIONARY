@@ -16,9 +16,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check JavaScript syntax
-        run: node --check app.js && for file in data/terms-*.js; do node --check "$file"; done
+        run: |
+          node --check app.js
+          for file in data/*.js; do node --check "$file"; done
 
-      - name: Validate terminology data
+      - name: Validate terminology data and expert details
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -26,20 +28,29 @@ jobs:
           const vm = require('vm');
 
           const sandbox = { window: {} };
-          const files = fs.readdirSync('data')
-            .filter((name) => /^terms-.*\.js$/.test(name))
-            .sort();
+          const orderedFiles = [
+            'terms-ml.js',
+            'terms-llm.js',
+            'terms-it.js',
+            'terms-expert-ai.js',
+            'term-details.js'
+          ];
 
-          for (const file of files) {
-            vm.runInNewContext(fs.readFileSync(path.join('data', file), 'utf8'), sandbox, { filename: file });
+          for (const file of orderedFiles) {
+            const fullPath = path.join('data', file);
+            if (!fs.existsSync(fullPath)) throw new Error(`Missing data file: ${file}`);
+            vm.runInNewContext(fs.readFileSync(fullPath, 'utf8'), sandbox, { filename: file });
           }
 
           const terms = sandbox.window.AIDICTIONARY_TERMS;
+          const details = sandbox.window.AIDICTIONARY_DETAILS || {};
           if (!Array.isArray(terms)) throw new Error('Terminology data was not initialized.');
-          if (terms.length !== 107) throw new Error(`Expected 107 terms, received ${terms.length}.`);
+          if (terms.length < 145) throw new Error(`Expected at least 145 terms, received ${terms.length}.`);
 
           const required = ['id', 'term', 'english', 'category', 'level', 'short', 'description', 'example'];
           const ids = new Set();
+          const unresolvedRelations = [];
+
           for (const term of terms) {
             for (const field of required) {
               if (!term[field]) throw new Error(`Missing ${field} in ${term.id || JSON.stringify(term)}`);
@@ -48,7 +59,29 @@ jobs:
             ids.add(term.id);
           }
 
+          for (const term of terms) {
+            for (const relatedId of term.related || []) {
+              if (!ids.has(relatedId)) unresolvedRelations.push(`${term.id} -> ${relatedId}`);
+            }
+          }
+
+          for (const [id, detail] of Object.entries(details)) {
+            if (!ids.has(id)) throw new Error(`Expert detail points to missing term: ${id}`);
+            for (const field of ['intuition', 'precise']) {
+              if (!detail[field]) throw new Error(`Missing expert detail ${field} in ${id}`);
+            }
+            for (const linkedId of [...(detail.prerequisites || []), ...(detail.next || [])]) {
+              if (!ids.has(linkedId)) unresolvedRelations.push(`${id} -> ${linkedId}`);
+            }
+          }
+
           const categories = new Set(terms.map((term) => term.category));
-          if (categories.size !== 8) throw new Error(`Expected 8 categories, received ${categories.size}.`);
+          if (categories.size < 8) throw new Error(`Expected at least 8 categories, received ${categories.size}.`);
+
           console.log(`Validated ${terms.length} terms across ${categories.size} categories.`);
+          console.log(`Validated ${Object.keys(details).length} expert explanations.`);
+          if (unresolvedRelations.length) {
+            console.warn(`Unresolved optional relations (${unresolvedRelations.length}):`);
+            console.warn(unresolvedRelations.slice(0, 30).join('\n'));
+          }
           NODE
