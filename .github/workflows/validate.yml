@@ -34,7 +34,8 @@ jobs:
             'terms-it.js',
             'terms-expert-ai.js',
             'learning-paths.js',
-            'term-details.js'
+            'term-details.js',
+            'term-details-expert.js'
           ];
 
           for (const file of orderedFiles) {
@@ -75,6 +76,10 @@ jobs:
             for (const linkedId of [...(detail.prerequisites || []), ...(detail.next || [])]) {
               if (!ids.has(linkedId)) unresolvedRelations.push(`${id} -> ${linkedId}`);
             }
+          }
+
+          if (Object.keys(details).length < 38) {
+            throw new Error(`Expected at least 38 expert explanations, received ${Object.keys(details).length}.`);
           }
 
           if (!Array.isArray(learningPaths) || learningPaths.length < 6) {
