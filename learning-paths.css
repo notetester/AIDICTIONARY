@@ -1,0 +1,33 @@
+.learning-paths{width:min(1180px,calc(100% - 2rem));margin:0 auto 4.5rem}
+.learning-paths-heading{display:flex;align-items:end;justify-content:space-between;gap:2rem;margin-bottom:1.2rem}
+.learning-paths-heading h2{margin:0;font-size:clamp(1.7rem,4vw,2.8rem);letter-spacing:-.055em}
+.learning-paths-heading p:not(.eyebrow){max-width:680px;margin:.65rem 0 0;color:var(--muted)}
+.learning-paths-heading>strong{flex:0 0 auto;padding:.65rem .9rem;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--accent);font-size:.82rem}
+.learning-path-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.learning-path-card{display:flex;flex-direction:column;padding:1.3rem;border:1px solid var(--line);border-radius:20px;background:var(--surface);box-shadow:0 8px 24px rgba(28,35,74,.04)}
+.path-card-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;color:var(--muted);font-size:.75rem;font-weight:800}
+.path-card-top strong{color:var(--accent)}
+.learning-path-card h3{margin:.8rem 0 .15rem;font-size:1.45rem;letter-spacing:-.04em}
+.learning-path-card>p{margin:.55rem 0 0;color:var(--muted);font-size:.88rem}
+.learning-path-card .path-subtitle{margin:0;color:var(--accent);font-size:.8rem;font-weight:850}
+.path-progress{height:8px;margin:1.1rem 0 .85rem;overflow:hidden;border-radius:999px;background:var(--bg)}
+.path-progress span{display:block;height:100%;border-radius:inherit;background:var(--accent);transition:width .25s ease}
+.path-preview{display:flex;flex-wrap:wrap;gap:.4rem}
+.path-preview button,.path-all-terms button{border:1px solid var(--line);background:var(--surface);color:var(--text)}
+.path-preview button{padding:.32rem .52rem;border-radius:999px;font-size:.72rem}
+.path-preview button.is-complete,.path-all-terms button.is-complete{border-color:color-mix(in srgb,#23a66f 45%,var(--line));background:color-mix(in srgb,#23a66f 10%,var(--surface));color:#208557;text-decoration:line-through}
+.path-all-terms{margin-top:.9rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.path-all-terms summary{cursor:pointer;color:var(--accent);font-size:.78rem;font-weight:850}
+.path-all-terms ol{display:grid;gap:.4rem;margin:.75rem 0 0;padding-left:1.4rem}
+.path-all-terms li{color:var(--muted);font-size:.75rem}
+.path-all-terms button{width:100%;padding:.5rem .6rem;border-radius:9px;text-align:left;font-weight:750}
+.path-all-terms button small{display:block;margin-top:.12rem;color:var(--muted);font-size:.63rem;font-weight:600}
+.path-start-button{margin-top:1rem;min-height:44px;border:0;border-radius:11px;background:var(--accent);color:#fff;font-weight:850}
+.mastery-section{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1.6rem;padding:1rem 1.1rem;border:1px solid color-mix(in srgb,#23a66f 38%,var(--line));border-radius:15px;background:color-mix(in srgb,#23a66f 8%,var(--surface))}
+.mastery-section strong{display:block}
+.mastery-section p{margin:.2rem 0 0;color:var(--muted);font-size:.78rem}
+.mastery-section button{flex:0 0 auto;min-height:42px;padding:.55rem .8rem;border:1px solid color-mix(in srgb,#23a66f 45%,var(--line));border-radius:10px;background:var(--surface);color:#208557;font-weight:850}
+.term-card.is-learned{background:color-mix(in srgb,#23a66f 5%,var(--surface))}
+.learned-badge{position:absolute;right:1.1rem;top:5.1rem;padding:.18rem .48rem;border-radius:999px;background:#208557;color:#fff;font-size:.64rem;font-weight:850}
+@media(max-width:800px){.learning-path-grid{grid-template-columns:1fr}.learning-paths-heading{align-items:start}.learning-paths-heading>strong{margin-top:.2rem}}
+@media(max-width:620px){.learning-paths{width:min(100% - 1.2rem,1180px);margin-bottom:3rem}.learning-paths-heading{display:block}.learning-paths-heading>strong{display:inline-flex;margin-top:1rem}.mastery-section{align-items:stretch;flex-direction:column}.mastery-section button{width:100%}}
