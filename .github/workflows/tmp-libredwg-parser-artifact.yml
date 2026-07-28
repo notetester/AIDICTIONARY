@@ -64,3 +64,35 @@ jobs:
           path: artifact/
           if-no-files-found: error
           retention-days: 1
+
+  package-native-libredwg:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Build fixed native LibreDWG tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential autoconf automake libtool pkg-config texinfo \
+            libxml2-dev libpcre2-dev zlib1g-dev
+          git clone --filter=blob:none https://github.com/mlightcad/libredwg-web.git src
+          cd src
+          git checkout b70b5573a6bf2345e5fb10f2adff7fb74a8123c5
+          git submodule update --init --recursive
+          sh autogen.sh
+          ./configure --disable-shared --enable-static
+          make -j2
+          mkdir -p ../artifact/bin
+          cp programs/dwg2dxf programs/dwgread programs/dwg2SVG ../artifact/bin/
+          ../artifact/bin/dwg2dxf --version | tee ../artifact/VERSION.txt
+          cd ..
+          find artifact -type f -print0 | sort -z | xargs -0 sha256sum > artifact/SHA256SUMS
+
+      - name: Upload native LibreDWG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libredwg-b70b5573
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 1
