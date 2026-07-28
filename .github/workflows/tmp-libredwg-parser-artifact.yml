@@ -37,3 +37,30 @@ jobs:
           path: artifact/
           if-no-files-found: error
           retention-days: 1
+
+  package-ezdxf:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Package fixed ezdxf runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact/py
+          python -m pip install --disable-pip-version-check --no-compile \
+            --target artifact/py 'ezdxf==1.4.2'
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, 'artifact/py')
+          import ezdxf
+          assert ezdxf.__version__ == '1.4.2', ezdxf.__version__
+          print(ezdxf.__version__)
+          PY
+          find artifact -type f -print0 | sort -z | xargs -0 sha256sum > artifact/SHA256SUMS
+
+      - name: Upload ezdxf artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ezdxf-runtime-1.4.2
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 1
