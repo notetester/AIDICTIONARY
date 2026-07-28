@@ -1,0 +1,41 @@
+name: Temporary LibreDWG parser artifact
+
+on:
+  push:
+    branches:
+      - tmp/libredwg-worker-url-bridge
+    paths:
+      - .github/workflows/tmp-libredwg-parser-artifact.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-parser:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download fixed upstream parser files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+          curl -fL --retry 4 --retry-delay 2 \
+            'https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-converter@3.12.1/dist/libredwg-parser-worker.js' \
+            -o artifact/libredwg-parser-worker.js
+          curl -fL --retry 4 --retry-delay 2 \
+            'https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-converter@3.12.1/dist/libredwg-converter.umd.cjs' \
+            -o artifact/libredwg-converter.umd.cjs
+          curl -fL --retry 4 --retry-delay 2 \
+            'https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-converter@3.12.1/package.json' \
+            -o artifact/package.json
+          sha256sum artifact/* | tee artifact/SHA256SUMS
+          test "$(stat -c%s artifact/libredwg-parser-worker.js)" -gt 12000000
+
+      - name: Upload parser artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libredwg-parser-runtime-3.12.1
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 1
