@@ -6,6 +6,11 @@ on:
     paths:
       - '.ta047-main-rescue-trigger'
       - '.github/workflows/tmp-ta047-main-rescue.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.ta047-pr-rescue-trigger'
+      - '.github/workflows/tmp-ta047-main-rescue.yml'
   workflow_dispatch:
 
 permissions:
