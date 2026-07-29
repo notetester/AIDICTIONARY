@@ -2,6 +2,16 @@
   "artifact_count": 56,
   "artifacts": [
     {
+      "created_at": "2026-07-29T19:37:03Z",
+      "error": "HTTPError: HTTP Error 401: Server failed to authenticate the request. Please refer to the information in the www-authenticate header.",
+      "expired": false,
+      "expires_at": "2026-07-30T19:37:02Z",
+      "id": 8737305788,
+      "members": [],
+      "name": "github-pages",
+      "size_in_bytes": 92243
+    },
+    {
       "created_at": "2026-07-29T19:29:21Z",
       "error": "HTTPError: HTTP Error 401: Server failed to authenticate the request. Please refer to the information in the www-authenticate header.",
       "expired": false,
@@ -499,15 +509,6 @@
       "members": [],
       "name": "github-pages",
       "size_in_bytes": 42647
-    },
-    {
-      "created_at": "2026-07-13T08:38:48Z",
-      "expired": true,
-      "expires_at": "2026-07-14T08:38:47Z",
-      "id": 8273489316,
-      "members": [],
-      "name": "github-pages",
-      "size_in_bytes": 42678
     }
   ],
   "found": null
