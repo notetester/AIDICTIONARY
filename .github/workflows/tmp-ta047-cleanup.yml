@@ -1,0 +1,159 @@
+name: tmp-ta047-cleanup
+
+on:
+  push:
+    branches:
+      - tmp/ta047-cleanup-trigger
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      CLEANUP_BRANCH: cleanup/ta047-libredwg-temp
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove temporary LibreDWG workflows and write receipt
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git switch --force-create "$CLEANUP_BRANCH" origin/main
+          mkdir -p /tmp/ta047-cleanup
+          find .github/workflows -maxdepth 1 -type f -name 'tmp-libredwg-*.yml' -print | sort | tee /tmp/ta047-cleanup/removed.txt
+          find .github/workflows -maxdepth 1 -type f -name 'tmp-libredwg-*.yml' -delete
+          mkdir -p docs/maintenance
+          cat > docs/maintenance/TA047_LIBREDWG_TEMP_CLEANUP.md <<'EOF'
+          # TA-047 LibreDWG temporary-path cleanup
+
+          Cleanup PR: `#PR_NUMBER_PLACEHOLDER`
+
+          The temporary LibreDWG artifact workflows were removed after the canonical payload was merged and replayed from GAME main.
+
+          Removed workflow paths:
+
+          ```text
+          REMOVED_PATHS_PLACEHOLDER
+          ```
+
+          Closed superseded pull requests:
+
+          - #4 — temporary parser artifact trigger
+          - #2 — temporary worker URL bridge
+
+          Removed temporary branches include the TA-047 public transfer/publisher branches and superseded LibreDWG trigger branches.
+          EOF
+          sed -i 's/^          //' docs/maintenance/TA047_LIBREDWG_TEMP_CLEANUP.md
+          python - <<'PY'
+          from pathlib import Path
+          receipt = Path('docs/maintenance/TA047_LIBREDWG_TEMP_CLEANUP.md')
+          removed = Path('/tmp/ta047-cleanup/removed.txt').read_text().strip() or '(none present on main; cleanup receipt retained)'
+          receipt.write_text(receipt.read_text().replace('REMOVED_PATHS_PLACEHOLDER', removed), encoding='utf-8')
+          PY
+          git add -A .github/workflows docs/maintenance/TA047_LIBREDWG_TEMP_CLEANUP.md
+          git commit -m '[CLEANUP][TA-047] Remove temporary LibreDWG workflows'
+          git push --force origin "HEAD:refs/heads/$CLEANUP_BRANCH"
+
+      - name: Create cleanup PR and bind receipt to PR number
+        run: |
+          set -euo pipefail
+          existing=$(gh api -X GET "repos/$REPO/pulls" -f state=open -f base=main -f "head=${REPO%%/*}:$CLEANUP_BRANCH" --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            cleanup_pr="$existing"
+          else
+            gh pr create --repo "$REPO" --base main --head "$CLEANUP_BRANCH" \
+              --title '[CLEANUP][TA-047] Remove temporary LibreDWG workflows' \
+              --body 'Removes temporary LibreDWG artifact workflows, closes superseded trigger PRs, and removes transfer branches after GAME exact-main delivery.' \
+              >/tmp/cleanup-url.txt
+            cleanup_pr=$(gh pr view --repo "$REPO" "$CLEANUP_BRANCH" --json number --jq .number)
+          fi
+          sed -i "s/#PR_NUMBER_PLACEHOLDER/#$cleanup_pr/" docs/maintenance/TA047_LIBREDWG_TEMP_CLEANUP.md
+          git add docs/maintenance/TA047_LIBREDWG_TEMP_CLEANUP.md
+          git commit --amend --no-edit
+          git push --force origin "HEAD:refs/heads/$CLEANUP_BRANCH"
+          cleanup_head=$(git rev-parse HEAD)
+          echo "CLEANUP_PR=$cleanup_pr" | tee -a "$GITHUB_ENV"
+          echo "CLEANUP_HEAD=$cleanup_head" | tee -a "$GITHUB_ENV"
+
+      - name: Merge cleanup PR
+        run: |
+          set -euo pipefail
+          gh api -X PUT "repos/$REPO/pulls/$CLEANUP_PR/merge" \
+            -f merge_method=squash \
+            -f sha="$CLEANUP_HEAD" \
+            -f commit_title='[CLEANUP][TA-047] Remove temporary LibreDWG workflows' \
+            -f commit_message='Remove temporary artifact workflows and record post-delivery cleanup.' \
+            > /tmp/cleanup-merge.json
+          cat /tmp/cleanup-merge.json
+          python - <<'PY' >> "$GITHUB_ENV"
+          import json
+          result=json.load(open('/tmp/cleanup-merge.json'))
+          if not result.get('merged'):
+              raise SystemExit(f"Cleanup merge failed: {result}")
+          print(f"CLEANUP_MERGE_SHA={result['sha']}")
+          PY
+
+      - name: Close superseded PRs
+        run: |
+          set -euo pipefail
+          for pr in 4 2; do
+            state=$(gh pr view "$pr" --repo "$REPO" --json state --jq .state 2>/dev/null || echo MISSING)
+            if [ "$state" = "OPEN" ]; then
+              gh pr comment "$pr" --repo "$REPO" --body "Closed after TA-047 canonical GAME mainline delivery. Temporary artifact/bridge path is no longer required; cleanup PR #$CLEANUP_PR is merged."
+              gh pr close "$pr" --repo "$REPO"
+            fi
+          done
+
+      - name: Remove temporary branches
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/ta047-branches.txt
+          import json, os, subprocess
+          repo=os.environ['REPO']
+          raw=subprocess.check_output(['gh','api',f'repos/{repo}/git/matching-refs/heads/'], text=True)
+          refs=json.loads(raw)
+          exact={
+              'refs/heads/tmp/ta047-transfer',
+              'refs/heads/tmp/ta047-publish-trigger',
+              'refs/heads/tmp/ta047-cleanup-trigger',
+              'refs/heads/tmp/trigger-libredwg-parser-artifact',
+              'refs/heads/tmp/libredwg-worker-url-bridge',
+              'refs/heads/cleanup/ta047-libredwg-temp',
+          }
+          for item in refs:
+              ref=item['ref']
+              if ref in exact or ('libredwg' in ref.lower() and ref.startswith('refs/heads/tmp/')):
+                  print(ref.removeprefix('refs/heads/'))
+          PY
+          cat /tmp/ta047-branches.txt
+          while IFS= read -r branch; do
+            [ -z "$branch" ] && continue
+            encoded=$(python -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$branch")
+            gh api -X DELETE "repos/$REPO/git/refs/heads/$encoded" || true
+          done < /tmp/ta047-branches.txt
+
+      - name: Verify final cleanup state
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout --detach "$CLEANUP_MERGE_SHA"
+          test -f docs/maintenance/TA047_LIBREDWG_TEMP_CLEANUP.md
+          if find .github/workflows -maxdepth 1 -type f -name 'tmp-libredwg-*.yml' | grep -q .; then
+            echo 'Temporary LibreDWG workflow still present' >&2
+            exit 1
+          fi
+          test "$(gh pr view 4 --repo "$REPO" --json state --jq .state)" = "CLOSED"
+          test "$(gh pr view 2 --repo "$REPO" --json state --jq .state)" = "CLOSED"
+          echo TA047_AIDICTIONARY_CLEANUP=PASS
