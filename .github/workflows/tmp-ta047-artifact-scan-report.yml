@@ -1,0 +1,132 @@
+name: tmp-ta047-artifact-scan-report
+
+on:
+  push:
+    branches: [tmp/ta047-cross-publisher]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/ta047-cross-publisher
+          fetch-depth: 0
+      - name: Scan all retained artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, io, json, os, urllib.request, zipfile
+          from pathlib import Path
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          expected_size = 766_936
+          expected_sha = '2ec193ca4a27535403b149c8bbbc613ce088e40134406a79144bd80556539068'
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'ta047-scan-report',
+          }
+          artifacts=[]
+          for page in range(1,21):
+              req=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/artifacts?per_page=100&page={page}',headers=headers)
+              with urllib.request.urlopen(req,timeout=60) as r:
+                  batch=json.load(r).get('artifacts',[])
+              artifacts.extend(batch)
+              if len(batch)<100: break
+
+          report={'artifact_count':len(artifacts),'artifacts':[],'found':None}
+          found=None
+          for a in artifacts:
+              item={k:a.get(k) for k in ('id','name','expired','size_in_bytes','created_at','expires_at')}
+              item['members']=[]
+              if not a.get('expired'):
+                  try:
+                      req=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/artifacts/{a["id"]}/zip',headers=headers)
+                      with urllib.request.urlopen(req,timeout=120) as r: z=r.read()
+                      with zipfile.ZipFile(io.BytesIO(z)) as az:
+                          for m in az.infolist():
+                              if m.is_dir(): continue
+                              data=az.read(m)
+                              digest=hashlib.sha256(data).hexdigest()
+                              member={'name':m.filename,'bytes':len(data),'sha256':digest}
+                              item['members'].append(member)
+                              if len(data)==expected_size and digest==expected_sha:
+                                  found=data
+                                  report['found']={'artifact_id':a['id'],'artifact_name':a.get('name'),'member':m.filename}
+                                  break
+                  except Exception as exc:
+                      item['error']=f'{type(exc).__name__}: {exc}'
+              report['artifacts'].append(item)
+              if found is not None: break
+
+          Path('.ta047-artifact-scan-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          if found is not None:
+              Path('/tmp/ta047-full.tar.xz').write_bytes(found)
+              Path('.ta047-artifact-found').write_text(json.dumps(report['found'],sort_keys=True)+'\n',encoding='utf-8')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .ta047-artifact-scan-report.json .ta047-artifact-found 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m '[INFRA][TA-047] Record artifact rescue scan'
+            git push origin HEAD:tmp/ta047-cross-publisher
+          fi
+
+      - name: Publish canonical branch when found
+        if: hashFiles('.ta047-artifact-found') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=/tmp/ta047-canonical
+          rm -rf "$work"
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$work"
+          cd "$work"
+          git checkout -B ta047/canonical-delivery origin/main
+          rm -rf transfer/ta047
+          mkdir -p transfer/ta047/extracted
+          cp /tmp/ta047-full.tar.xz transfer/ta047/ta047-full.tar.xz
+          python - <<'PY'
+          import hashlib, io, json, lzma, tarfile
+          from pathlib import Path, PurePosixPath
+          root=Path('transfer/ta047')
+          xz=(root/'ta047-full.tar.xz').read_bytes()
+          xz_sha='2ec193ca4a27535403b149c8bbbc613ce088e40134406a79144bd80556539068'
+          tar_sha='19cee3be488a52f1d3cfd5013ded8823c1dc6547172f067cbd60c418cf94119c'
+          assert len(xz)==766936 and hashlib.sha256(xz).hexdigest()==xz_sha
+          raw=lzma.decompress(xz)
+          assert hashlib.sha256(raw).hexdigest()==tar_sha
+          records=[]
+          with tarfile.open(fileobj=io.BytesIO(raw),mode='r:') as tf:
+              members=[m for m in tf.getmembers() if m.isfile()]
+              assert len(members)==48
+              for m in members:
+                  name=m.name.removeprefix('./')
+                  p=PurePosixPath(name)
+                  assert not p.is_absolute() and '..' not in p.parts
+                  assert p.suffix.lower() not in {'.dwg','.dxf','.exe','.dll','.so','.dylib'}
+                  data=tf.extractfile(m).read()
+                  target=root/'extracted'/Path(*p.parts)
+                  target.parent.mkdir(parents=True,exist_ok=True)
+                  target.write_bytes(data)
+                  records.append({'path':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+          (root/'GITLINK_MANIFEST.json').write_text(json.dumps({'schema':'ta047.canonical-gitlink.v1','archive_bytes':len(xz),'archive_sha256':xz_sha,'tar_sha256':tar_sha,'regular_files':len(records),'files':records},indent=2,sort_keys=True)+'\n')
+          (root/'README.md').write_text('# TA-047 canonical remaining-DWG inventory delivery\n\nDrawings: 15/15. Exact XZ and safely extracted 48-file inventory tree. No source DWG, temporary DXF, or parser runtime.\n')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add transfer/ta047
+          git commit -m '[INFRA][TA-047] Publish canonical remaining-DWG inventories'
+          git push --force origin HEAD:ta047/canonical-delivery
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
