@@ -1,0 +1,146 @@
+name: tmp-ta047-tunnel-publisher
+
+on:
+  push:
+    branches: [tmp/ta047-tunnel-publisher]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch and verify exact canonical archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-delay 2 \
+            -H 'bypass-tunnel-reminder: true' \
+            -A 'ta047-github-publisher/1' \
+            'https://ta047-2ec193ca.loca.lt/ta047-full.tar.xz' \
+            -o /tmp/ta047-full.tar.xz
+          python - <<'PY'
+          import hashlib, io, json, lzma, tarfile
+          from pathlib import Path, PurePosixPath
+
+          src = Path('/tmp/ta047-full.tar.xz')
+          xz = src.read_bytes()
+          xz_sha = '2ec193ca4a27535403b149c8bbbc613ce088e40134406a79144bd80556539068'
+          tar_sha = '19cee3be488a52f1d3cfd5013ded8823c1dc6547172f067cbd60c418cf94119c'
+          assert len(xz) == 766_936, len(xz)
+          assert hashlib.sha256(xz).hexdigest() == xz_sha
+          raw = lzma.decompress(xz)
+          assert hashlib.sha256(raw).hexdigest() == tar_sha
+
+          forbidden = {'.dwg', '.dxf', '.exe', '.dll', '.so', '.dylib'}
+          names = []
+          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:') as tf:
+              members = [m for m in tf.getmembers() if m.isfile()]
+              assert len(members) == 48
+              for member in members:
+                  name = member.name
+                  while name.startswith('./'):
+                      name = name[2:]
+                  p = PurePosixPath(name)
+                  assert name and not p.is_absolute() and '..' not in p.parts
+                  assert p.suffix.lower() not in forbidden
+                  names.append(p.as_posix())
+          assert len(names) == len(set(names)) == 48
+          assert {
+              'out/dwg-inventory/_manifest.json',
+              'out/dwg-inventory/_receipt.json',
+              'out/dwg-inventory/_report.md',
+          } <= set(names)
+          drawings = {str(PurePosixPath(n).parent) for n in names if n.endswith('/_inventory.json')}
+          assert len(drawings) == 15
+          for d in drawings:
+              assert {
+                  f'{d}/_inventory.json',
+                  f'{d}/_inventory_report.md',
+                  f'{d}/_receipt.json',
+              } <= set(names)
+          PY
+
+      - name: Publish content-addressed canonical branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=/tmp/ta047-publish
+          rm -rf "$work"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$work"
+          cd "$work"
+          git checkout -B ta047/canonical-delivery origin/main
+          rm -rf transfer/ta047
+          mkdir -p transfer/ta047/extracted
+          cp /tmp/ta047-full.tar.xz transfer/ta047/ta047-full.tar.xz
+          python - <<'PY'
+          import hashlib, io, json, lzma, tarfile
+          from pathlib import Path, PurePosixPath
+
+          root = Path('transfer/ta047')
+          xz = (root / 'ta047-full.tar.xz').read_bytes()
+          xz_sha = '2ec193ca4a27535403b149c8bbbc613ce088e40134406a79144bd80556539068'
+          tar_sha = '19cee3be488a52f1d3cfd5013ded8823c1dc6547172f067cbd60c418cf94119c'
+          assert len(xz) == 766_936 and hashlib.sha256(xz).hexdigest() == xz_sha
+          raw = lzma.decompress(xz)
+          assert hashlib.sha256(raw).hexdigest() == tar_sha
+          records = []
+          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:') as tf:
+              members = [m for m in tf.getmembers() if m.isfile()]
+              assert len(members) == 48
+              for member in members:
+                  name = member.name
+                  while name.startswith('./'):
+                      name = name[2:]
+                  p = PurePosixPath(name)
+                  assert name and not p.is_absolute() and '..' not in p.parts
+                  data = tf.extractfile(member).read()
+                  target = root / 'extracted' / Path(*p.parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(data)
+                  records.append({
+                      'path': p.as_posix(),
+                      'bytes': len(data),
+                      'sha256': hashlib.sha256(data).hexdigest(),
+                  })
+          manifest = {
+              'schema': 'ta047.canonical-gitlink.v1',
+              'archive_bytes': len(xz),
+              'archive_sha256': xz_sha,
+              'tar_sha256': tar_sha,
+              'regular_files': len(records),
+              'drawings': 15,
+              'raw_entities': 756522,
+              'expanded_entities': 2160128,
+              'layers': 2024,
+              'block_definitions': 34221,
+              'text_candidates': 56057,
+              'parser_warnings': 0,
+              'unknown_entities': 0,
+              'files': records,
+          }
+          (root / 'GITLINK_MANIFEST.json').write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          (root / 'README.md').write_text(
+              '# TA-047 canonical remaining-DWG inventories\n\n'
+              'Exact 766,936-byte XZ archive plus the safely extracted 48-file tree. '
+              'Drawings: 15/15. No source DWG, temporary DXF, or parser runtime.\n',
+              encoding='utf-8',
+          )
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add transfer/ta047
+          git commit -m '[INFRA][TA-047] Restore canonical remaining-DWG inventories'
+          git push --force origin HEAD:ta047/canonical-delivery
